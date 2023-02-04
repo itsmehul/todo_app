@@ -1,4 +1,5 @@
 use axum::{extract::State, http::StatusCode, Json};
+use jsonwebtoken::{decode, DecodingKey, TokenData};
 use sea_orm::{ActiveModelTrait, TryIntoModel};
 
 use crate::{
@@ -19,14 +20,22 @@ pub async fn create_user(
     let mut new_user = users::ActiveModel {
         ..Default::default()
     };
-    new_user.username = Set(request_user.username);
+    new_user.username = Set(request_user.username.clone());
     new_user.password = Set(hash_password(&request_user.password)?);
-    new_user.token = Set(Some(create_token(&jwt_token.0)?));
+    new_user.token = Set(Some(create_token(&jwt_token.0, request_user.username)?));
+
     let user = new_user
         .save(&db)
         .await
         .map_err(|error| {
-            eprintln!("Error creating user: {:?}", error);
+            let error_message = error.to_string();
+            if error_message.contains("duplicate key value violates unique constraint") {
+                return AppError::new(
+                    "Username already exists".to_string(),
+                    StatusCode::BAD_REQUEST,
+                );
+            }
+            eprintln!("Error creating user: {:?}", error_message);
             AppError::new(
                 "Error creating user".to_string(),
                 StatusCode::INTERNAL_SERVER_ERROR,

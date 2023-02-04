@@ -6,6 +6,8 @@ pub mod app_state;
 use app_state::AppState;
 
 mod database;
+mod middleware;
+mod queries;
 mod router;
 mod routes;
 pub mod utilities;
